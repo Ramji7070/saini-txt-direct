@@ -290,7 +290,7 @@ async def drm_handler(bot: Client, m: Message):
                if signed and "drm" in signed.lower():
                    url = signed
                    mpd, keys = helper.get_mps_and_keys(url)
-                   url = mpd
+                   
                    keys_string = " ".join([f"--key {key}" for key in keys])
 
 
