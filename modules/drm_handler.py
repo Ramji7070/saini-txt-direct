@@ -294,7 +294,13 @@ async def drm_handler(bot: Client, m: Message):
     # DRM case: extract directly from response
                  url = data.get("mpd")
                  keys = data.get("keys", [])
-                 url = mpd
+                 if not mpd:
+                   raise ValueError("❌ MPD URL missing in DRM response.")
+                 if not keys:
+                    raise ValueError("❌ Decryption keys missing in DRM response.")
+ 
+                    url = mpd
+                 
                  keys_string = " ".join([f"--key {key}" for key in keys])
 
                else:
