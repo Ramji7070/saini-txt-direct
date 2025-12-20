@@ -307,10 +307,13 @@ async def download_and_decrypt_video(url, cmd, name, key):
 
 
 async def download_video_referer(url, cmd, name, referer):
-    # AppX download with referer header
-    download_cmd = f'{cmd} -R 25 --fragment-retries 25 --external-downloader aria2c ' \
-                   f'--downloader-args "aria2c: -x 16 -j 32 --header Referer:{referer}" ' \
-                   f'-o "{name}.mp4" "{url}"'
+    download_cmd = (
+        f'{cmd} -R 25 --fragment-retries 25 --external-downloader aria2c '
+        f'--downloader-args "aria2c: -x 16 -j 32 --header=\\"Referer: {referer}\\"" '
+        f'-o "{name}.mp4" "{url}"'
+    )
+
+    print("Running:", download_cmd)  # Debug line
 
     process = await asyncio.create_subprocess_shell(
         download_cmd,
@@ -324,7 +327,7 @@ async def download_video_referer(url, cmd, name, referer):
         return f"{name}.mp4"
     else:
         print(f"Failed to download {url} with referer {referer}")
-        print(stderr.decode())
+        print(stderr.decode())  # Show exact error
         return None
 async def send_vid(bot: Client, m: Message, cc, filename, vidwatermark, thumb, name, prog, channel_id):
     subprocess.run(f'ffmpeg -i "{filename}" -ss 00:00:10 -vframes 1 "{filename}.jpg"', shell=True)
