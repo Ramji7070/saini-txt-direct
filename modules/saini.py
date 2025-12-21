@@ -277,62 +277,50 @@ import asyncio
 
 failed_counter = 0  # global variable
 
-async def download_m3u8(url: str, cmd: str, name: str) -> str | None:
-    """
-    Subprocess-based m3u8 downloader.
-    Adds Referer and Origin automatically for 'appx' links.
-    Works like IDM/1DM behavior.
-    """
 
-    global failed_counter
-
-    # ✅ Add headers if URL contains appx
-    if "appx" in url.lower():
-        print(f"⚡ APPX detected, adding Referer/Origin for {name}")
-        cmd += ' --add-header "Referer: https://player.akamai.net.in/"'
-        cmd += ' --add-header "Origin: https://player.akamai.net.in"'
-
-    # 🔹 Build download command
-    download_cmd = f'{cmd} -R 25 --fragment-retries 25 --external-downloader aria2c --downloader-args "aria2c: -x 16 -j 32"'
-    print("Download command:", download_cmd)
-
-    # Run the download
-    k = subprocess.run(download_cmd, shell=True)
-
-    # Retry logic for visionias links
-    if "visionias" in cmd and k.returncode != 0 and failed_counter <= 10:
-        failed_counter += 1
-        await asyncio.sleep(5)
-        return await download_m3u8(url, cmd, name)
-
-    failed_counter = 0
-
-    # Return downloaded file path
-    try:
-        if os.path.isfile(name):
-            return name
-        elif os.path.isfile(f"{name}.webm"):
-            return f"{name}.webm"
-
-        base = name.split(".")[0]
-        if os.path.isfile(f"{base}.mkv"):
-            return f"{base}.mkv"
-        elif os.path.isfile(f"{base}.mp4"):
-            return f"{base}.mp4"
-        elif os.path.isfile(f"{base}.mp4.webm"):
-            return f"{base}.mp4.webm"
-
-        return name
-    except FileNotFoundError as exc:
-        print(f"Error: {exc}")
-        return f"{os.path.splitext(name)[0]}.mp4"
 from tqdm import tqdm
 import os
 import subprocess
 import os
 import subprocess
 import asyncio
+def download_m3u8(url: str, filename: str) -> str | None:
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Linux; Android 13)",
+        "Referer": "https://player.akamai.net.in/",
+        "Origin": "https://player.akamai.net.in",
+        "Accept": "*/*"
+    }
+    os.makedirs("downloads", exist_ok=True)
+    final_file = f"downloads/{filename}.mp4"
 
+    try:
+        r = requests.get(url, headers=headers, timeout=30)
+        r.raise_for_status()
+        playlist_lines = r.text.splitlines()
+        segments = [urljoin(url, line) for line in playlist_lines if line and not line.startswith("#")]
+        total_segments = len(segments)
+        if total_segments == 0:
+            print("❌ No segments found!")
+            return None
+
+        print(f"🚀 Downloading {total_segments} segments for {filename}...")
+
+        with open(final_file, "wb") as f:
+            for idx, seg_url in enumerate(segments, 1):
+                seg_resp = requests.get(seg_url, headers=headers, stream=True, timeout=30)
+                seg_resp.raise_for_status()
+                for chunk in seg_resp.iter_content(chunk_size=1024*1024):
+                    if chunk:
+                        f.write(chunk)
+                print(f"  ✅ Segment {idx}/{total_segments} downloaded", end="\r")
+
+        print(f"\n✅ Full video downloaded: {final_file}")
+        return final_file
+
+    except Exception as e:
+        print(f"❌ Download failed: {e}")
+        return None
 global variable
 
 import os
@@ -341,14 +329,27 @@ import asyncio
 
 failed_counter = 0  # global variable
 
+import os
+import asyncio
+import subprocess
+
+failed_counter = 0  # global retry counter
+
 async def download_video(url: str, cmd: str, name: str) -> str | None:
     """
     Subprocess-based download function.
-    If 'appx' is in the URL, automatically adds Referer and Origin headers.
-    Works exactly like IDM / 1DM behavior.
+    If URL is 'appx' or 'transcoded', automatically adds Referer and Origin headers.
+    If URL is transcoded, uses download_m3u8 fallback.
+    Works like IDM / 1DM behavior.
     """
 
     global failed_counter
+
+    # 🔹 Transcoded URL → use download_m3u8 directly
+    if "transcoded" in url.lower():
+        print(f"⚡ Transcoded URL detected → using download_m3u8 for {name}")
+        from download_m3u8_module import download_m3u8  # your m3u8 function
+        return download_m3u8(url, name)
 
     # ✅ Add headers for appx links
     if "appx" in url.lower():
@@ -371,7 +372,7 @@ async def download_video(url: str, cmd: str, name: str) -> str | None:
 
     failed_counter = 0
 
-    # Return downloaded file path
+    # 🔹 Return downloaded file path
     try:
         if os.path.isfile(name):
             return name
@@ -379,14 +380,13 @@ async def download_video(url: str, cmd: str, name: str) -> str | None:
             return f"{name}.webm"
 
         base = name.split(".")[0]
-        if os.path.isfile(f"{base}.mkv"):
-            return f"{base}.mkv"
-        elif os.path.isfile(f"{base}.mp4"):
-            return f"{base}.mp4"
-        elif os.path.isfile(f"{base}.mp4.webm"):
-            return f"{base}.mp4.webm"
+        for ext in [".mkv", ".mp4", ".mp4.webm"]:
+            path = f"{base}{ext}"
+            if os.path.isfile(path):
+                return path
 
-        return name
+        return f"{base}.mp4"
+
     except FileNotFoundError as exc:
         print(f"Error: {exc}")
         return f"{os.path.splitext(name)[0]}.mp4"
@@ -408,41 +408,6 @@ HEADERS = {
 }
 
 def download_m3u8(url: str, filename: str) -> str | None:
-    try:
-        if not url or not url.startswith("http"):
-            return None
-
-        os.makedirs("downloads", exist_ok=True)
-        output = f"downloads/{filename}.ts"
-
-        # Load playlist
-        playlist = m3u8.load(url, headers=HEADERS)
-
-        # Master playlist → best quality
-        if playlist.playlists:
-            best = max(
-                playlist.playlists,
-                key=lambda p: p.stream_info.bandwidth or 0
-            )
-            url = urljoin(url, best.uri)
-            playlist = m3u8.load(url, headers=HEADERS)
-
-        if not playlist.segments:
-            return None
-
-        # Download segments (NO KEY, NO DECRYPT)
-        with open(output, "wb") as f:
-            for seg in playlist.segments:
-                seg_url = urljoin(url, seg.uri)
-                r = requests.get(seg_url, headers=HEADERS, timeout=20)
-                r.raise_for_status()
-                f.write(r.content)
-
-        return output
-
-    except Exception as e:
-        print("HLS DOWNLOAD ERROR:", e)
-        return None
 
 
 # ==============================
