@@ -269,13 +269,13 @@ import os
 import subprocess
 import asyncio
 
-failed_counter = 0  # global variable
+# global variable
 
 import os
 import subprocess
 import asyncio
 
-failed_counter = 0  # global variable
+ # global variable
 
 
 from tqdm import tqdm
@@ -401,13 +401,9 @@ import requests
 import m3u8
 from urllib.parse import urljoin
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Linux; Android 13)",
-    "Referer": "https://player.akamai.net.in/",
-    "Origin": "https://player.akamai.net.in",
-}
 
-def download_m3u8(url: str, filename: str) -> str | None:
+
+
 
 
 # ==============================
