@@ -440,48 +440,6 @@ def download_and_decrypt_video(url: str, name: str, key: str = None, cmd=None) -
 import os, re, requests
 from tqdm import tqdm
 
-def safe_filename(name: str) -> str:
-    return re.sub(r"[^\w\-]", "_", name)
-
-def download_video(url: str, filename: str) -> str | None:
-    """
-    Download video from given URL (DragoAPI or direct .m3u8 resolved link)
-    and save locally for Telegram upload.
-    """
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Linux; Android 13)",
-        "Referer": "https://player.akamai.net.in/",
-        "Origin": "https://player.akamai.net.in",
-        "Accept": "*/*"
-    }
-
-    os.makedirs("downloads", exist_ok=True)
-    safe_name = safe_filename(filename)
-    file_path = f"downloads/{safe_name}.mp4"
-
-    try:
-        with requests.get(url, headers=headers, stream=True, timeout=40) as r:
-            r.raise_for_status()
-            total = int(r.headers.get("content-length", 0))
-
-            with open(file_path, "wb") as f, tqdm(
-                total=total if total > 0 else None,
-                unit="B",
-                unit_scale=True,
-                desc=safe_name,
-                ncols=80
-            ) as bar:
-                for chunk in r.iter_content(chunk_size=1024*1024):
-                    if chunk:
-                        f.write(chunk)
-                        bar.update(len(chunk))
-
-        print(f"✅ Download complete: {file_path}")
-        return file_path
-
-    except Exception as e:
-        print(f"❌ Download failed: {e}")
-        return None
 
 
 async def send_doc(bot: Client, m: Message, cc, ka, cc1, prog, count, name, channel_id):
@@ -506,7 +464,37 @@ import asyncio
 import os
 
 
+import os
+import subprocess
 
+def download_m3u8(url: str, filename: str) -> str | None:
+    os.makedirs("downloads", exist_ok=True)
+    output = f"downloads/{filename}.mp4"
+
+    headers = (
+        "Referer: https://player.akamai.net.in/\r\n"
+        "Origin: https://player.akamai.net.in\r\n"
+        "User-Agent: Mozilla/5.0 (Linux; Android 13)\r\n"
+    )
+
+    cmd = [
+        "ffmpeg",
+        "-headers", headers,
+        "-allowed_extensions", "ALL",
+        "-i", url,
+        "-c", "copy",
+        "-bsf:a", "aac_adtstoasc",
+        "-y",
+        output
+    ]
+
+    try:
+        subprocess.run(cmd, check=True)
+        print(f"✅ Download successful: {output}")
+        return output
+    except subprocess.CalledProcessError as e:
+        print("❌ Download failed")
+        return None
 
     
 async def send_vid(bot: Client, m: Message, cc, filename, vidwatermark, thumb, name, prog, channel_id):
