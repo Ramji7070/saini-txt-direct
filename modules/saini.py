@@ -302,43 +302,65 @@ from tqdm import tqdm
 import os
 import subprocess
 
+import os
+import requests
+import m3u8
+from urllib.parse import urljoin
+from Crypto.Cipher import AES
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Linux; Android 13)",
+    "Referer": "https://player.akamai.net.in/",
+    "Origin": "https://player.akamai.net.in",
+}
+
 def download_m3u8(url: str, filename: str) -> str | None:
-    # safety: empty / broken url check
-    if not url or not url.startswith("http"):
-        print("❌ Invalid m3u8 URL")
+    if not url.startswith("http"):
+        print("❌ Invalid URL")
         return None
 
     os.makedirs("downloads", exist_ok=True)
-    output = f"downloads/{filename}.mp4"
+    out_path = f"downloads/{filename}.ts"
 
-    headers = (
-        "Referer: https://player.akamai.net.in/\r\n"
-        "Origin: https://player.akamai.net.in\r\n"
-        "User-Agent: Mozilla/5.0 (Linux; Android 13)\r\n"
-        "Accept: */*\r\n"
-    )
+    # 1️⃣ Load playlist
+    playlist = m3u8.load(url, headers=HEADERS)
 
-    cmd = [
-        "ffmpeg",
-        "-y",
-        "-loglevel", "error",
-        "-headers", headers,
-        "-allowed_extensions", "ALL",
-        "-i", url,
-        "-map", "0:v:0",
-        "-map", "0:a:0?",
-        "-c", "copy",
-        "-bsf:a", "aac_adtstoasc",
-        output
-    ]
+    # 2️⃣ Agar MASTER playlist hai → best quality lo
+    if playlist.playlists:
+        best = max(
+            playlist.playlists,
+            key=lambda p: p.stream_info.bandwidth or 0
+        )
+        url = urljoin(url, best.uri)
+        playlist = m3u8.load(url, headers=HEADERS)
 
-    try:
-        subprocess.run(cmd, check=True)
-        print(f"✅ Download completed: {output}")
-        return output
-    except subprocess.CalledProcessError as e:
-        print("❌ ffmpeg download failed")
-        return None
+    # 3️⃣ Encryption handle
+    key = None
+    iv = None
+
+    if playlist.keys and playlist.keys[0]:
+        key_uri = urljoin(url, playlist.keys[0].uri)
+        key = requests.get(key_uri, headers=HEADERS, timeout=20).content
+        iv = playlist.keys[0].iv
+        if iv:
+            iv = bytes.fromhex(iv.replace("0x", ""))
+
+    # 4️⃣ Download segments
+    with open(out_path, "wb") as f:
+        for i, seg in enumerate(playlist.segments, start=1):
+            seg_url = urljoin(url, seg.uri)
+            r = requests.get(seg_url, headers=HEADERS, timeout=20)
+            data = r.content
+
+            if key:
+                cipher = AES.new(key, AES.MODE_CBC, iv)
+                data = cipher.decrypt(data)
+
+            f.write(data)
+            print(f"⬇️ Segment {i}/{len(playlist.segments)}", end="\r")
+
+    print(f"\n✅ Download complete: {out_path}")
+    return out_path
 
 
 # ==============================
