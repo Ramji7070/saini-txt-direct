@@ -1,5 +1,6 @@
 #saini bots
 async-lru==2.0.2
+tqdm==4.66.1
 certifi==2023.5.7
 charset-normalizer==3.1.0
 idna==3.4
