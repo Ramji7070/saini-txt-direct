@@ -271,24 +271,32 @@ import asyncio
 
 failed_counter = 0  # global variable
 
+import os
+import subprocess
+import asyncio
+
+failed_counter = 0  # global variable
+
 async def download_m3u8(url: str, cmd: str, name: str) -> str | None:
     """
-    Download m3u8 video using the same subprocess-based cmd flow.
-    If 'appx' is in the URL, adds Referer and Origin headers.
+    Subprocess-based m3u8 downloader.
+    Adds Referer and Origin automatically for 'appx' links.
+    Works like IDM/1DM behavior.
     """
+
     global failed_counter
 
-    # ✅ If appx → add headers to cmd
+    # ✅ Add headers if URL contains appx
     if "appx" in url.lower():
         print(f"⚡ APPX detected, adding Referer/Origin for {name}")
         cmd += ' --add-header "Referer: https://player.akamai.net.in/"'
         cmd += ' --add-header "Origin: https://player.akamai.net.in"'
 
-    # 🔹 Build final download command
+    # 🔹 Build download command
     download_cmd = f'{cmd} -R 25 --fragment-retries 25 --external-downloader aria2c --downloader-args "aria2c: -x 16 -j 32"'
-    print(download_cmd)
+    print("Download command:", download_cmd)
 
-    # Run the command
+    # Run the download
     k = subprocess.run(download_cmd, shell=True)
 
     # Retry logic for visionias links
@@ -325,29 +333,45 @@ import os
 import subprocess
 import asyncio
 
+global variable
+
+import os
+import subprocess
+import asyncio
+
 failed_counter = 0  # global variable
 
-async def download_video(url, cmd, name):
+async def download_video(url: str, cmd: str, name: str) -> str | None:
+    """
+    Subprocess-based download function.
+    If 'appx' is in the URL, automatically adds Referer and Origin headers.
+    Works exactly like IDM / 1DM behavior.
+    """
+
     global failed_counter
 
-    # ✅ If appx in url → add referer to cmd
+    # ✅ Add headers for appx links
     if "appx" in url.lower():
-        print(f"⚡ APPX detected, adding Referer to download command for {name}")
-        # Add --add-header "Referer: ..." to aria2c args
+        print(f"⚡ APPX detected, adding Referer/Origin for {name}")
         cmd += ' --add-header "Referer: https://player.akamai.net.in/"'
+        cmd += ' --add-header "Origin: https://player.akamai.net.in"'
 
-    # 🔹 Existing download command
+    # 🔹 Build download command
     download_cmd = f'{cmd} -R 25 --fragment-retries 25 --external-downloader aria2c --downloader-args "aria2c: -x 16 -j 32"'
-    print(download_cmd)
+    print("Download command:", download_cmd)
 
+    # Run subprocess
     k = subprocess.run(download_cmd, shell=True)
 
+    # Retry logic for visionias links
     if "visionias" in cmd and k.returncode != 0 and failed_counter <= 10:
         failed_counter += 1
         await asyncio.sleep(5)
         return await download_video(url, cmd, name)
 
     failed_counter = 0
+
+    # Return downloaded file path
     try:
         if os.path.isfile(name):
             return name
