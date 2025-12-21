@@ -238,13 +238,107 @@ import asyncio
 import subprocess
 import logging
 
-failed_counter = 0
+
+import subprocess
+import os
+
+import subprocess
+import os
+import requests
+import os
+
+import requests
+import os
+from tqdm import tqdm
+import os
+import requests
+from tqdm import tqdm  # progress bar
+
+import os
+import mmap
+import requests
+from tqdm import tqdm
+from base64 import b64decode
+# ye hai appx ke liye
+import os, re, requests
+from tqdm import tqdm
+import subprocess
+# appx ke liye 
+
+import os
+import subprocess
+import asyncio
+
+failed_counter = 0  # global variable
+
+async def download_m3u8(url: str, cmd: str, name: str) -> str | None:
+    """
+    Download m3u8 video using the same subprocess-based cmd flow.
+    If 'appx' is in the URL, adds Referer and Origin headers.
+    """
+    global failed_counter
+
+    # ✅ If appx → add headers to cmd
+    if "appx" in url.lower():
+        print(f"⚡ APPX detected, adding Referer/Origin for {name}")
+        cmd += ' --add-header "Referer: https://player.akamai.net.in/"'
+        cmd += ' --add-header "Origin: https://player.akamai.net.in"'
+
+    # 🔹 Build final download command
+    download_cmd = f'{cmd} -R 25 --fragment-retries 25 --external-downloader aria2c --downloader-args "aria2c: -x 16 -j 32"'
+    print(download_cmd)
+
+    # Run the command
+    k = subprocess.run(download_cmd, shell=True)
+
+    # Retry logic for visionias links
+    if "visionias" in cmd and k.returncode != 0 and failed_counter <= 10:
+        failed_counter += 1
+        await asyncio.sleep(5)
+        return await download_m3u8(url, cmd, name)
+
+    failed_counter = 0
+
+    # Return downloaded file path
+    try:
+        if os.path.isfile(name):
+            return name
+        elif os.path.isfile(f"{name}.webm"):
+            return f"{name}.webm"
+
+        base = name.split(".")[0]
+        if os.path.isfile(f"{base}.mkv"):
+            return f"{base}.mkv"
+        elif os.path.isfile(f"{base}.mp4"):
+            return f"{base}.mp4"
+        elif os.path.isfile(f"{base}.mp4.webm"):
+            return f"{base}.mp4.webm"
+
+        return name
+    except FileNotFoundError as exc:
+        print(f"Error: {exc}")
+        return f"{os.path.splitext(name)[0]}.mp4"
+from tqdm import tqdm
+import os
+import subprocess
+import os
+import subprocess
+import asyncio
+
+failed_counter = 0  # global variable
 
 async def download_video(url, cmd, name):
-    download_cmd = f'{cmd} -R 25 --fragment-retries 25 --external-downloader aria2c --downloader-args "aria2c: -x 16 -j 32"'
     global failed_counter
+
+    # ✅ If appx in url → add referer to cmd
+    if "appx" in url.lower():
+        print(f"⚡ APPX detected, adding Referer to download command for {name}")
+        # Add --add-header "Referer: ..." to aria2c args
+        cmd += ' --add-header "Referer: https://player.akamai.net.in/"'
+
+    # 🔹 Existing download command
+    download_cmd = f'{cmd} -R 25 --fragment-retries 25 --external-downloader aria2c --downloader-args "aria2c: -x 16 -j 32"'
     print(download_cmd)
-    logging.info(download_cmd)
 
     k = subprocess.run(download_cmd, shell=True)
 
@@ -272,36 +366,6 @@ async def download_video(url, cmd, name):
     except FileNotFoundError as exc:
         print(f"Error: {exc}")
         return f"{os.path.splitext(name)[0]}.mp4"
-import subprocess
-import os
-
-import subprocess
-import os
-import requests
-import os
-
-import requests
-import os
-from tqdm import tqdm
-import os
-import requests
-from tqdm import tqdm  # progress bar
-
-import os
-import mmap
-import requests
-from tqdm import tqdm
-from base64 import b64decode
-# ye hai appx ke liye
-import os, re, requests
-from tqdm import tqdm
-import subprocess
-# appx ke liye 
-
-from tqdm import tqdm
-import os
-import subprocess
-
 import os
 import requests
 import m3u8
