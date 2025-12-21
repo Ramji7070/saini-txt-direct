@@ -334,37 +334,25 @@ import asyncio
 import subprocess
 
 failed_counter = 0  # global retry counter
-
 async def download_video(url: str, cmd: str, name: str) -> str | None:
-    """
-    Subprocess-based download function.
-    If URL is 'appx' or 'transcoded', automatically adds Referer and Origin headers.
-    If URL is transcoded, uses download_m3u8 fallback.
-    Works like IDM / 1DM behavior.
-    """
-
     global failed_counter
 
-    # 🔹 Transcoded URL → use download_m3u8 directly
+    # Transcoded URL → call download_m3u8 directly
     if "transcoded" in url.lower():
         print(f"⚡ Transcoded URL detected → using download_m3u8 for {name}")
-        from download_m3u8_module import download_m3u8  # your m3u8 function
         return download_m3u8(url, name)
 
-    # ✅ Add headers for appx links
+    # APPX URL → add headers
     if "appx" in url.lower():
         print(f"⚡ APPX detected, adding Referer/Origin for {name}")
         cmd += ' --add-header "Referer: https://player.akamai.net.in/"'
         cmd += ' --add-header "Origin: https://player.akamai.net.in"'
 
-    # 🔹 Build download command
     download_cmd = f'{cmd} -R 25 --fragment-retries 25 --external-downloader aria2c --downloader-args "aria2c: -x 16 -j 32"'
     print("Download command:", download_cmd)
 
-    # Run subprocess
     k = subprocess.run(download_cmd, shell=True)
 
-    # Retry logic for visionias links
     if "visionias" in cmd and k.returncode != 0 and failed_counter <= 10:
         failed_counter += 1
         await asyncio.sleep(5)
@@ -372,7 +360,7 @@ async def download_video(url: str, cmd: str, name: str) -> str | None:
 
     failed_counter = 0
 
-    # 🔹 Return downloaded file path
+    # Return file path
     try:
         if os.path.isfile(name):
             return name
@@ -390,6 +378,7 @@ async def download_video(url: str, cmd: str, name: str) -> str | None:
     except FileNotFoundError as exc:
         print(f"Error: {exc}")
         return f"{os.path.splitext(name)[0]}.mp4"
+
 import os
 import requests
 import m3u8
