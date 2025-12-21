@@ -293,16 +293,25 @@ import requests
 from tqdm import tqdm
 from base64 import b64decode
 # ye hai appx ke liye
+import os, re, requests
+from tqdm import tqdm
+import subprocess
+# appx ke liye 
+def safe_filename(name: str) -> str:
+    # Replace spaces/brackets/special chars with underscore
+    return re.sub(r"[^\w\-]", "_", name)
+
 def download_asia_video(url: str, filename: str) -> str | None:
     headers = {
         "User-Agent": "Mozilla/5.0 (Linux; Android 13)",
-        "Referer": "https://player.akamai.net.in/",
-        "Origin": "https://player.akamai.net.in",
+        "Referer": "https://livelearn.in/",
+        "Origin": "https://livelearn.in",
         "Accept": "*/*"
     }
 
     os.makedirs("downloads", exist_ok=True)
-    file_path = f"downloads/{filename}.mkv"
+    safe_name = safe_filename(filename)
+    file_path = f"downloads/{safe_name}.mp4"
 
     try:
         with requests.get(url, headers=headers, stream=True, timeout=40) as r:
@@ -313,7 +322,7 @@ def download_asia_video(url: str, filename: str) -> str | None:
                 total=total,
                 unit="B",
                 unit_scale=True,
-                desc=filename,
+                desc=safe_name,
                 ncols=80
             ) as bar:
                 for chunk in r.iter_content(chunk_size=1024*1024):
@@ -327,7 +336,6 @@ def download_asia_video(url: str, filename: str) -> str | None:
     except Exception as e:
         print(f"❌ Asia Download failed: {e}")
         return None
-
 # ==============================
 # FILE DECRYPT FUNCTION
 # ==============================
