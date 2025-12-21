@@ -233,33 +233,195 @@ def time_name():
     return f"{date} {current_time}.mp4"
 
 
-async def download_video(url,cmd, name):
+import os
+import asyncio
+import subprocess
+import logging
+
+failed_counter = 0
+
+async def download_video(url, cmd, name):
     download_cmd = f'{cmd} -R 25 --fragment-retries 25 --external-downloader aria2c --downloader-args "aria2c: -x 16 -j 32"'
     global failed_counter
     print(download_cmd)
     logging.info(download_cmd)
+
     k = subprocess.run(download_cmd, shell=True)
+
     if "visionias" in cmd and k.returncode != 0 and failed_counter <= 10:
         failed_counter += 1
         await asyncio.sleep(5)
-        await download_video(url, cmd, name)
+        return await download_video(url, cmd, name)
+
     failed_counter = 0
     try:
         if os.path.isfile(name):
             return name
         elif os.path.isfile(f"{name}.webm"):
             return f"{name}.webm"
-        name = name.split(".")[0]
-        if os.path.isfile(f"{name}.mkv"):
-            return f"{name}.mkv"
-        elif os.path.isfile(f"{name}.mp4"):
-            return f"{name}.mp4"
-        elif os.path.isfile(f"{name}.mp4.webm"):
-            return f"{name}.mp4.webm"
+
+        base = name.split(".")[0]
+        if os.path.isfile(f"{base}.mkv"):
+            return f"{base}.mkv"
+        elif os.path.isfile(f"{base}.mp4"):
+            return f"{base}.mp4"
+        elif os.path.isfile(f"{base}.mp4.webm"):
+            return f"{base}.mp4.webm"
 
         return name
     except FileNotFoundError as exc:
-        return os.path.isfile.splitext[0] + "." + "mp4"
+        print(f"Error: {exc}")
+        return f"{os.path.splitext(name)[0]}.mp4"
+import subprocess
+import os
+
+import subprocess
+import os
+import requests
+import os
+
+import requests
+import os
+from tqdm import tqdm
+import os
+import requests
+from tqdm import tqdm  # progress bar
+
+import os
+import mmap
+import requests
+from tqdm import tqdm
+from base64 import b64decode
+# ye hai appx ke liye
+def download_asia_video(url: str, filename: str) -> str | None:
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Linux; Android 13)",
+        "Referer": "https://player.akamai.net.in/",
+        "Origin": "https://player.akamai.net.in",
+        "Accept": "*/*"
+    }
+
+    os.makedirs("downloads", exist_ok=True)
+    file_path = f"downloads/{filename}.mkv"
+
+    try:
+        with requests.get(url, headers=headers, stream=True, timeout=40) as r:
+            r.raise_for_status()
+            total = int(r.headers.get("content-length", 0))
+
+            with open(file_path, "wb") as f, tqdm(
+                total=total,
+                unit="B",
+                unit_scale=True,
+                desc=filename,
+                ncols=80
+            ) as bar:
+                for chunk in r.iter_content(chunk_size=1024*1024):
+                    if chunk:
+                        f.write(chunk)
+                        bar.update(len(chunk))
+
+        print(f"✅ Asia Download complete: {file_path}")
+        return file_path
+
+    except Exception as e:
+        print(f"❌ Asia Download failed: {e}")
+        return None
+
+# ==============================
+# FILE DECRYPT FUNCTION
+# ==============================
+def decrypt_file(file_path: str, key: str) -> bool:
+    """
+    Decrypts first 28 bytes of the file using key.
+    If key is None or empty, decryption is skipped.
+    """
+    if not os.path.exists(file_path):
+        print(f"❌ File not found: {file_path}")
+        return False
+
+    if not key:
+        print("⚠️ No key provided, skipping decryption")
+        return True
+
+    key_bytes = key.encode()
+    size = min(28, os.path.getsize(file_path))
+
+    with open(file_path, "r+b") as f:
+        with mmap.mmap(f.fileno(), length=size, access=mmap.ACCESS_WRITE) as mm:
+            for i in range(size):
+                mm[i] ^= key_bytes[i] if i < len(key_bytes) else i
+
+    print(f"✅ File decrypted: {file_path}")
+    return True
+
+
+# ==============================
+# RAW FILE DOWNLOAD
+# ==============================
+def download_raw_file(url: str, filename: str) -> str | None:
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Linux; Android 13)",
+        "Referer": "https://akstechnicalclasses.classx.co.in/",
+        "Origin": "https://akstechnicalclasses.classx.co.in",
+        "Accept": "*/*"
+    }
+
+    os.makedirs("downloads", exist_ok=True)
+    file_path = f"downloads/{filename}.mkv"
+
+    try:
+        with requests.get(url, headers=headers, stream=True, timeout=40) as r:
+            r.raise_for_status()
+            total = int(r.headers.get("content-length", 0))
+
+            with open(file_path, "wb") as f, tqdm(
+                total=total,
+                unit="B",
+                unit_scale=True,
+                desc=filename,
+                ncols=80
+            ) as bar:
+                for chunk in r.iter_content(chunk_size=1024*1024):
+                    if chunk:
+                        f.write(chunk)
+                        bar.update(len(chunk))
+
+        print(f"✅ Download complete: {file_path}")
+        return file_path
+
+    except Exception as e:
+        print(f"❌ Download failed: {e}")
+        return None
+
+
+# ==============================
+# DOWNLOAD + DECRYPT WRAPPER
+# ==============================
+def download_and_decrypt_video(url: str, name: str, key: str = None, cmd=None) -> str | None:
+    """
+    Mimics your original function logic:
+    1. Download video from URL
+    2. Decrypt using key if provided
+    """
+    video_path = download_raw_file(url, name)
+
+    if video_path and os.path.isfile(video_path):
+        decrypted = decrypt_file(video_path, key)
+        if decrypted:
+            print(f"✅ File {video_path} decrypted successfully.")
+            return video_path
+        else:
+            print(f"❌ Failed to decrypt {video_path}.")
+            return None
+    else:
+        print("❌ Video download failed or file not found.")
+        return None
+
+
+# ==============================
+# EXAMPLE USAGE
+# ==============================
 
 
 async def send_doc(bot: Client, m: Message, cc, ka, cc1, prog, count, name, channel_id):
@@ -274,61 +436,19 @@ async def send_doc(bot: Client, m: Message, cc, ka, cc1, prog, count, name, chan
     time.sleep(3) 
 
 
-def decrypt_file(file_path, key):  
-    if not os.path.exists(file_path): 
-        return False  
-
-    with open(file_path, "r+b") as f:  
-        num_bytes = min(28, os.path.getsize(file_path))  
-        with mmap.mmap(f.fileno(), length=num_bytes, access=mmap.ACCESS_WRITE) as mmapped_file:  
-            for i in range(num_bytes):  
-                mmapped_file[i] ^= ord(key[i]) if i < len(key) else i 
-    return True  
 
 import asyncio
 
-async def download_and_decrypt_video(url, cmd, name, key):
-    # AppX URLs require referer header
-    if "appx" in url:
-        video_path = await download_video_referer(
-            url, cmd, name, referer="https://akstechnicalclasses.classx.co.in/"
-        )
-    else:
-        video_path = await download_video(url, cmd, name)  # tumhara existing function
+import asyncio
 
-    if video_path:
-        decrypted = decrypt_file(video_path, key)
-        if decrypted:
-            print(f"File {video_path} decrypted successfully.")
-            return video_path
-        else:
-            print(f"Failed to decrypt {video_path}.")
-            return None
+import asyncio
+
+import os
 
 
-async def download_video_referer(url, cmd, name, referer):
-    download_cmd = (
-        f'{cmd} -R 25 --fragment-retries 25 --external-downloader aria2c '
-        f'--downloader-args "aria2c: -x 16 -j 32 --header=\\"Referer: {referer}\\"" '
-        f'-o "{name}.mp4" "{url}"'
-    )
 
-    print("Running:", download_cmd)  # Debug line
 
-    process = await asyncio.create_subprocess_shell(
-        download_cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE
-    )
-    stdout, stderr = await process.communicate()
-
-    if process.returncode == 0:
-        print(f"Downloaded {name}.mp4 with referer {referer}")
-        return f"{name}.mp4"
-    else:
-        print(f"Failed to download {url} with referer {referer}")
-        print(stderr.decode())  # Show exact error
-        return None
+    
 async def send_vid(bot: Client, m: Message, cc, filename, vidwatermark, thumb, name, prog, channel_id):
     subprocess.run(f'ffmpeg -i "{filename}" -ss 00:00:10 -vframes 1 "{filename}.jpg"', shell=True)
     await prog.delete (True)
