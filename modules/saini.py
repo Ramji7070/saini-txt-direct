@@ -297,15 +297,18 @@ import os, re, requests
 from tqdm import tqdm
 import subprocess
 # appx ke liye 
+import os, re, requests
+from tqdm import tqdm
+
 def safe_filename(name: str) -> str:
-    # Replace spaces/brackets/special chars with underscore
+    # Replace spaces, brackets, and special chars with underscore
     return re.sub(r"[^\w\-]", "_", name)
 
 def download_asia_video(url: str, filename: str) -> str | None:
     headers = {
         "User-Agent": "Mozilla/5.0 (Linux; Android 13)",
-        "Referer": "https://livelearn.in/",
-        "Origin": "https://livelearn.in",
+        "Referer": "https://player.akamai.net.in/",
+        "Origin": "https://player.akamai.net.in",
         "Accept": "*/*"
     }
 
@@ -318,8 +321,9 @@ def download_asia_video(url: str, filename: str) -> str | None:
             r.raise_for_status()
             total = int(r.headers.get("content-length", 0))
 
+            # Agar content-length missing ho to tqdm ko None pass karo
             with open(file_path, "wb") as f, tqdm(
-                total=total,
+                total=total if total > 0 else None,
                 unit="B",
                 unit_scale=True,
                 desc=safe_name,
@@ -333,8 +337,11 @@ def download_asia_video(url: str, filename: str) -> str | None:
         print(f"✅ Asia Download complete: {file_path}")
         return file_path
 
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Asia Download failed (network): {e}")
+        return None
     except Exception as e:
-        print(f"❌ Asia Download failed: {e}")
+        print(f"❌ Asia Download failed (other): {e}")
         return None
 # ==============================
 # FILE DECRYPT FUNCTION
