@@ -297,52 +297,50 @@ import os, re, requests
 from tqdm import tqdm
 import subprocess
 # appx ke liye 
-import os, re, requests
+
 from tqdm import tqdm
+import os
+import subprocess
 
-def safe_filename(name: str) -> str:
-    # Replace spaces, brackets, and special chars with underscore
-    return re.sub(r"[^\w\-]", "_", name)
-
-def download_asia_video(url: str, filename: str) -> str | None:
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Linux; Android 13)",
-        "Referer": "https://player.akamai.net.in/",
-        "Origin": "https://player.akamai.net.in",
-        "Accept": "*/*"
-    }
+def download_m3u8(url: str, filename: str) -> str | None:
+    # safety: empty / broken url check
+    if not url or not url.startswith("http"):
+        print("❌ Invalid m3u8 URL")
+        return None
 
     os.makedirs("downloads", exist_ok=True)
-    safe_name = safe_filename(filename)
-    file_path = f"downloads/{safe_name}.mp4"
+    output = f"downloads/{filename}.mp4"
+
+    headers = (
+        "Referer: https://player.akamai.net.in/\r\n"
+        "Origin: https://player.akamai.net.in\r\n"
+        "User-Agent: Mozilla/5.0 (Linux; Android 13)\r\n"
+        "Accept: */*\r\n"
+    )
+
+    cmd = [
+        "ffmpeg",
+        "-y",
+        "-loglevel", "error",
+        "-headers", headers,
+        "-allowed_extensions", "ALL",
+        "-i", url,
+        "-map", "0:v:0",
+        "-map", "0:a:0?",
+        "-c", "copy",
+        "-bsf:a", "aac_adtstoasc",
+        output
+    ]
 
     try:
-        with requests.get(url, headers=headers, stream=True, timeout=40) as r:
-            r.raise_for_status()
-            total = int(r.headers.get("content-length", 0))
-
-            # Agar content-length missing ho to tqdm ko None pass karo
-            with open(file_path, "wb") as f, tqdm(
-                total=total if total > 0 else None,
-                unit="B",
-                unit_scale=True,
-                desc=safe_name,
-                ncols=80
-            ) as bar:
-                for chunk in r.iter_content(chunk_size=1024*1024):
-                    if chunk:
-                        f.write(chunk)
-                        bar.update(len(chunk))
-
-        print(f"✅ Asia Download complete: {file_path}")
-        return file_path
-
-    except requests.exceptions.RequestException as e:
-        print(f"❌ Asia Download failed (network): {e}")
+        subprocess.run(cmd, check=True)
+        print(f"✅ Download completed: {output}")
+        return output
+    except subprocess.CalledProcessError as e:
+        print("❌ ffmpeg download failed")
         return None
-    except Exception as e:
-        print(f"❌ Asia Download failed (other): {e}")
-        return None
+
+
 # ==============================
 # FILE DECRYPT FUNCTION
 # ==============================
@@ -467,34 +465,7 @@ import os
 import os
 import subprocess
 
-def download_m3u8(url: str, filename: str) -> str | None:
-    os.makedirs("downloads", exist_ok=True)
-    output = f"downloads/{filename}.mp4"
 
-    headers = (
-        "Referer: https://player.akamai.net.in/\r\n"
-        "Origin: https://player.akamai.net.in\r\n"
-        "User-Agent: Mozilla/5.0 (Linux; Android 13)\r\n"
-    )
-
-    cmd = [
-        "ffmpeg",
-        "-headers", headers,
-        "-allowed_extensions", "ALL",
-        "-i", url,
-        "-c", "copy",
-        "-bsf:a", "aac_adtstoasc",
-        "-y",
-        output
-    ]
-
-    try:
-        subprocess.run(cmd, check=True)
-        print(f"✅ Download successful: {output}")
-        return output
-    except subprocess.CalledProcessError as e:
-        print("❌ Download failed")
-        return None
 
     
 async def send_vid(bot: Client, m: Message, cc, filename, vidwatermark, thumb, name, prog, channel_id):
