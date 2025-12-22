@@ -232,59 +232,29 @@ def time_name():
     current_time = now.strftime("%H%M%S")
     return f"{date} {current_time}.mp4"
 
+import os, re, asyncio, aiohttp
+from urllib.parse import urljoin
 
-import os
+async def fetch_segment(session, seg_url, headers):
+    async with session.get(seg_url, headers=headers, timeout=30) as resp:
+        resp.raise_for_status()
+        return await resp.read()
+
+import aiohttp
 import asyncio
-import subprocess
-import logging
-
-
-import subprocess
 import os
+from urllib.parse import urljoin
 
-import subprocess
-import os
-import requests
-import os
+async def fetch_segment(session, seg_url, f):
+    async with session.get(seg_url) as resp:
+        resp.raise_for_status()
+        while True:
+            chunk = await resp.content.read(1024*1024)
+            if not chunk:
+                break
+            f.write(chunk)
 
-import requests
-import os
-from tqdm import tqdm
-import os
-import requests
-from tqdm import tqdm  # progress bar
-
-import os
-import mmap
-import requests
-from tqdm import tqdm
-from base64 import b64decode
-# ye hai appx ke liye
-import os, re, requests
-from tqdm import tqdm
-import subprocess
-# appx ke liye 
-
-import os
-import subprocess
-import asyncio
-
-# global variable
-
-import os
-import subprocess
-import asyncio
-
- # global variable
-
-
-from tqdm import tqdm
-import os
-import subprocess
-import os
-import subprocess
-import asyncio
-def download_m3u8(url: str, filename: str) -> str | None:
+async def download_m3u8_async(url: str, filename: str):
     headers = {
         "User-Agent": "Mozilla/5.0 (Linux; Android 13)",
         "Referer": "https://player.akamai.net.in/",
@@ -294,63 +264,41 @@ def download_m3u8(url: str, filename: str) -> str | None:
     os.makedirs("downloads", exist_ok=True)
     final_file = f"downloads/{filename}.mp4"
 
-    try:
-        r = requests.get(url, headers=headers, timeout=30)
-        r.raise_for_status()
-        playlist_lines = r.text.splitlines()
+    async with aiohttp.ClientSession(headers=headers) as session:
+        r = await session.get(url)
+        text = await r.text()
+        playlist_lines = text.splitlines()
         segments = [urljoin(url, line) for line in playlist_lines if line and not line.startswith("#")]
-        total_segments = len(segments)
-        if total_segments == 0:
+
+        if not segments:
             print("❌ No segments found!")
             return None
 
-        print(f"🚀 Downloading {total_segments} segments for {filename}...")
+        print(f"🚀 Downloading {len(segments)} segments for {filename}...")
 
         with open(final_file, "wb") as f:
-            for idx, seg_url in enumerate(segments, 1):
-                seg_resp = requests.get(seg_url, headers=headers, stream=True, timeout=30)
-                seg_resp.raise_for_status()
-                for chunk in seg_resp.iter_content(chunk_size=1024*1024):
-                    if chunk:
-                        f.write(chunk)
-                print(f"  ✅ Segment {idx}/{total_segments} downloaded", end="\r")
+            tasks = [fetch_segment(session, seg_url, f) for seg_url in segments]
+            await asyncio.gather(*tasks)
 
         print(f"\n✅ Full video downloaded: {final_file}")
         return final_file
 
-    except Exception as e:
-        print(f"❌ Download failed: {e}")
-        return None
-global variable
-
-import os
-import subprocess
-import asyncio
-
-failed_counter = 0  # global variable
-
+# Run
+# asyncio.run(download_m3u8_async("your_m3u8_url", "video_name"))
 import os
 import asyncio
 import subprocess
+import logging
 
-failed_counter = 0  # global retry counter
-async def download_video(url: str, cmd: str, name: str) -> str | None:
-    global failed_counter
-
-    # Transcoded URL → call download_m3u8 directly
+async def download_video(url, cmd, name):
     if "transcoded" in url.lower():
         print(f"⚡ Transcoded URL detected → using download_m3u8 for {name}")
         return download_m3u8(url, name)
 
-    # APPX URL → add headers
-    if "appx" in url.lower():
-        print(f"⚡ APPX detected, adding Referer/Origin for {name}")
-        cmd += ' --add-header "Referer: https://player.akamai.net.in/"'
-        cmd += ' --add-header "Origin: https://player.akamai.net.in"'
-
     download_cmd = f'{cmd} -R 25 --fragment-retries 25 --external-downloader aria2c --downloader-args "aria2c: -x 16 -j 32"'
-    print("Download command:", download_cmd)
-
+    global failed_counter
+    print(download_cmd)
+    logging.info(download_cmd)
     k = subprocess.run(download_cmd, shell=True)
 
     if "visionias" in cmd and k.returncode != 0 and failed_counter <= 10:
@@ -360,55 +308,74 @@ async def download_video(url: str, cmd: str, name: str) -> str | None:
 
     failed_counter = 0
 
-    # Return file path
     try:
         if os.path.isfile(name):
             return name
         elif os.path.isfile(f"{name}.webm"):
             return f"{name}.webm"
 
-        base = name.split(".")[0]
-        for ext in [".mkv", ".mp4", ".mp4.webm"]:
-            path = f"{base}{ext}"
-            if os.path.isfile(path):
-                return path
+        base = os.path.splitext(name)[0]  # ✅ correct usage
+        if os.path.isfile(f"{base}.mkv"):
+            return f"{base}.mkv"
+        elif os.path.isfile(f"{base}.mp4"):
+            return f"{base}.mp4"
+        elif os.path.isfile(f"{base}.mp4.webm"):
+            return f"{base}.mp4.webm"
 
         return f"{base}.mp4"
 
     except FileNotFoundError as exc:
         print(f"Error: {exc}")
         return f"{os.path.splitext(name)[0]}.mp4"
+import os
+import os
+import time
+import mmap
+import asyncio
+import requests
+import subprocess
 
+from tqdm import tqdm
+from pyrogram import Client
+from pyrogram.types import Message
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+import requests
+import os
+from tqdm import tqdm
 import os
 import requests
-import m3u8
-from urllib.parse import urljoin
-from Crypto.Cipher import AES
-
+from tqdm import tqdm  # progress bar
+def create_session():
+    session = requests.Session()
+    retries = Retry(
+        total=5,
+        backoff_factor=1.5,
+        status_forcelist=[429, 500, 502, 503, 504],
+        allowed_methods=["GET"]
+    )
+    adapter = HTTPAdapter(
+        max_retries=retries,
+        pool_connections=10,
+        pool_maxsize=10
+    )
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+    return session
 import os
+import mmap
 import requests
-import m3u8
-from urllib.parse import urljoin
-
-
-
-
-
+from tqdm import tqdm
+from base64 import b64decode
 
 # ==============================
 # FILE DECRYPT FUNCTION
 # ==============================
 def decrypt_file(file_path: str, key: str) -> bool:
-    """
-    Decrypts first 28 bytes of the file using key.
-    If key is None or empty, decryption is skipped.
-    """
-    if not os.path.exists(file_path):
-        print(f"❌ File not found: {file_path}")
+    if not file_path or not os.path.exists(file_path):
         return False
 
     if not key:
-        print("⚠️ No key provided, skipping decryption")
         return True
 
     key_bytes = key.encode()
@@ -419,10 +386,7 @@ def decrypt_file(file_path: str, key: str) -> bool:
             for i in range(size):
                 mm[i] ^= key_bytes[i] if i < len(key_bytes) else i
 
-    print(f"✅ File decrypted: {file_path}")
     return True
-
-
 # ==============================
 # RAW FILE DOWNLOAD
 # ==============================
@@ -431,67 +395,70 @@ def download_raw_file(url: str, filename: str) -> str | None:
         "User-Agent": "Mozilla/5.0 (Linux; Android 13)",
         "Referer": "https://akstechnicalclasses.classx.co.in/",
         "Origin": "https://akstechnicalclasses.classx.co.in",
-        "Accept": "*/*"
+        "Accept": "*/*",
+        "Connection": "keep-alive"
     }
 
     os.makedirs("downloads", exist_ok=True)
     file_path = f"downloads/{filename}.mkv"
 
-    try:
-        with requests.get(url, headers=headers, stream=True, timeout=40) as r:
-            r.raise_for_status()
-            total = int(r.headers.get("content-length", 0))
+    session = create_session()
+    downloaded = 0
 
-            with open(file_path, "wb") as f, tqdm(
+    if os.path.exists(file_path):
+        downloaded = os.path.getsize(file_path)
+        headers["Range"] = f"bytes={downloaded}-"
+
+    try:
+        with session.get(url, headers=headers, stream=True, timeout=(10, 180)) as r:
+            if r.status_code not in (200, 206):
+                print(f"❌ Bad status: {r.status_code}")
+                return None
+
+            total = int(r.headers.get("content-length", 0)) + downloaded
+            chunk_size = 256 * 1024
+
+            with open(file_path, "ab") as f, tqdm(
                 total=total,
+                initial=downloaded,
                 unit="B",
                 unit_scale=True,
                 desc=filename,
                 ncols=80
             ) as bar:
-                for chunk in r.iter_content(chunk_size=1024*1024):
+                for chunk in r.iter_content(chunk_size=chunk_size):
                     if chunk:
                         f.write(chunk)
                         bar.update(len(chunk))
 
-        print(f"✅ Download complete: {file_path}")
         return file_path
 
     except Exception as e:
-        print(f"❌ Download failed: {e}")
-        return None
-
-
+        print(f"⚠️ Download interrupted (resume enabled): {e}")
+        return file_path if os.path.exists(file_path) else None
 # ==============================
 # DOWNLOAD + DECRYPT WRAPPER
 # ==============================
-def download_and_decrypt_video(url: str, name: str, key: str = None, cmd=None) -> str | None:
-    """
-    Mimics your original function logic:
-    1. Download video from URL
-    2. Decrypt using key if provided
-    """
-    video_path = download_raw_file(url, name)
 
-    if video_path and os.path.isfile(video_path):
-        decrypted = decrypt_file(video_path, key)
-        if decrypted:
-            print(f"✅ File {video_path} decrypted successfully.")
-            return video_path
-        else:
-            print(f"❌ Failed to decrypt {video_path}.")
-            return None
-    else:
-        print("❌ Video download failed or file not found.")
+def download_and_decrypt_video(url: str, name: str, key: str = None) -> str | None:
+    video_path = None
+
+    for _ in range(5):  # resume attempts
+        video_path = download_raw_file(url, name)
+        if video_path and os.path.getsize(video_path) > 10 * 1024 * 1024:
+            break
+
+    if not video_path:
         return None
 
+    if decrypt_file(video_path, key):
+        return video_path
+
+    return None
 
 # ==============================
 # EXAMPLE USAGE
 # ==============================
-import os, re, requests
-from tqdm import tqdm
-
 
 
 async def send_doc(bot: Client, m: Message, cc, ka, cc1, prog, count, name, channel_id):
@@ -516,41 +483,114 @@ import asyncio
 import os
 
 
-import os
-import subprocess
-
 
 
     
-async def send_vid(bot: Client, m: Message, cc, filename, vidwatermark, thumb, name, prog, channel_id):
-    subprocess.run(f'ffmpeg -i "{filename}" -ss 00:00:10 -vframes 1 "{filename}.jpg"', shell=True)
-    await prog.delete (True)
-    reply1 = await bot.send_message(channel_id, f"**📩 Uploading Video 📩:-**\n<blockquote>**{name}**</blockquote>")
-    reply = await m.reply_text(f"**Generate Thumbnail:**\n<blockquote>**{name}**</blockquote>")
-    try:
-        if thumb == "/d":
-            thumbnail = f"{filename}.jpg"
-        else:
-            thumbnail = thumb  
-        
-        if vidwatermark == "/d":
-            w_filename = f"{filename}"
-        else:
-            w_filename = f"w_{filename}"
-            font_path = "vidwater.ttf"
-            subprocess.run(
-                f'ffmpeg -i "{filename}" -vf "drawtext=fontfile={font_path}:text=\'{vidwatermark}\':fontcolor=white@0.3:fontsize=h/6:x=(w-text_w)/2:y=(h-text_h)/2" -codec:a copy "{w_filename}"',
-                shell=True
-            )
-            
-    except Exception as e:
-        await m.reply_text(str(e))
+import os
+import time
+import asyncio
+
+# 🔹 Async ffmpeg runner (NO BLOCKING)
+async def run_cmd(cmd: str):
+    process = await asyncio.create_subprocess_shell(
+        cmd,
+        stdout=asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.DEVNULL
+    )
+    await process.communicate()
+
+
+async def send_vid(
+    bot: Client,
+    m: Message,
+    cc,
+    filename,
+    vidwatermark,
+    thumb,
+    name,
+    prog,
+    channel_id
+):
+    # ==========================
+    # THUMBNAIL GENERATION
+    # ==========================
+    thumb_path = f"{filename}.jpg"
+    await run_cmd(
+        f'ffmpeg -y -i "{filename}" -ss 00:00:10 -vframes 1 "{thumb_path}"'
+    )
+
+    await prog.delete(True)
+
+    reply1 = await bot.send_message(
+        channel_id,
+        f"**📩 Uploading Video 📩:-**\n<blockquote>**{name}**</blockquote>"
+    )
+
+    reply = await m.reply_text(
+        f"**Generate Thumbnail:**\n<blockquote>**{name}**</blockquote>"
+    )
+
+    # ==========================
+    # THUMB SELECTION
+    # ==========================
+    thumbnail = thumb_path if thumb == "/d" else thumb
+
+    # ==========================
+    # WATERMARK PROCESS
+    # ==========================
+    if vidwatermark == "/d":
+        w_filename = filename
+    else:
+        w_filename = f"w_{os.path.basename(filename)}"
+        font_path = "vidwater.ttf"
+
+        await run_cmd(
+            f'ffmpeg -y -i "{filename}" -vf '
+            f'"drawtext=fontfile={font_path}:text=\'{vidwatermark}\':'
+            f'fontcolor=white@0.3:fontsize=h/6:'
+            f'x=(w-text_w)/2:y=(h-text_h)/2" '
+            f'-codec:a copy "{w_filename}"'
+        )
+
+    # ==========================
+    # SAFETY CHECK
+    # ==========================
+    if not os.path.exists(w_filename):
+        await m.reply_text("❌ Video processing failed")
+        return
 
     dur = int(duration(w_filename))
     start_time = time.time()
 
+    # ==========================
+    # UPLOAD (VIDEO → DOC FALLBACK)
+    # ==========================
     try:
-        await bot.send_video(channel_id, w_filename, caption=cc, supports_streaming=True, height=720, width=1280, thumb=thumbnail, duration=dur, progress=progress_bar, progress_args=(reply, start_time))
+        await bot.send_video(
+            chat_id=channel_id,
+            video=w_filename,
+            caption=cc,
+            supports_streaming=True,
+            height=720,
+            width=1280,
+            thumb=thumbnail,
+            duration=dur,
+            progress=progress_bar,
+            progress_args=(reply, start_time)
+        )
+    except Exception:
+        await bot.send_document(
+            chat_id=channel_id,
+            document=w_filename,
+            caption=cc,
+            progress=progress_bar,
+            progress_args=(reply, start_time)
+        )
+
+    # ==========================
+    # CLEANUP
+    # ==========================
+    
     except Exception:
         await bot.send_document(channel_id, w_filename, caption=cc, progress=progress_bar, progress_args=(reply, start_time))
     os.remove(w_filename)
