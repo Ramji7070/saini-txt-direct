@@ -611,7 +611,8 @@ async def drm_handler(bot: Client, m: Message):
                             else:
                                 cmd = f'yt-dlp -o "{namef}.pdf" "{url}"'
 
-                            download_cmd = f"{cmd} -R 25 --fragment-retries 25"
+                            download_cmd = f'{cmd} -R 25 --fragment-retries 25 --proxy "http://27.34.242.98:80"'
+
 
                             # -----------------------------------------
                             # DOWNLOAD PDF
